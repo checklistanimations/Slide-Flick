@@ -1,1 +1,86 @@
 This is a future project.
+
+Below are internal notes that .... well if you want to read them go right ahead. I want to journal the concept so that when I am ready to build it I can see the architecture.
+
+slide Flick is a frame by frame engine. While there may be interpolation after that is not at all what I am desiging as the core. 
+Now if 500 shapes were all moving at once then probably a group or something would be better but we need need to be ready for what I will throw at it. It is correct that 500 shapes will NOT be animated all 720 frames. but a lot will. and if the animation is longer I need to be ready to handle those 20 million characters. If objects can hold it in memory then I am on board. but if we are going to bloat memory by doing this when the shape already has most of the properties and can hold additional ones with tags. I would like us to be cautious of that. I really do like the idea of everything being an object but I dont want to spend the time to make something that takes 4GB of memory when running.
+
+
+---------------
+
+ I have to conceptualize it.
+I need to start small. So
+We used to hold zero frame data in EVERY shape on the slide when a new scene is created. We are proposing that we NO LONGER use tags. We dont need to. everything can be live objects and xmlparts.
+This is appealing but.
+There can be several scenes per presentation. so we just have to make sure that the 50 million worse case we mentioned. Might have to put into something like 50 slides. 50 scenes is a lot but that is now for a worse case scenario 
+whatever number this is 2,500,000,000 is that 2 billion 500 million?
+
+this is not what is in memory this is what might be in the xml parts. The reason this is important is because we have to store all the data we need in this xml so it can be read, loaded to objects, and then resaved.
+
+Are we going to run into problems early on?
+
+-------------------
+
+there are 2 edge cases that will push this limit.
+1: Me. I will push that limit but I know I can just make another presentation and continue where I left off.
+2: the inexperienced animator / powerpoint user. example . They animate a character walking. They move the "background" that has 200 shapes. Each shape is recorded for every frame. They should have grouped the shapes behind the character then moved that group along with the shapes in front of the character to create the overlap. Inexperienced people will not understand this and may indeed cause the "program" to run sluggish. 
+
+I see that being the main case here. As the slide flick community is built, best practices will be discussed and honestly the group might be really small. If I am being honest. This add-in is for me. I know how it works. I have a 2003 version that uses nothing but tags. I want to make it work with a newer version so the objects make sense. 
+
+The users who pick this up will probably understand that we need to be kind to it to get it to work. Its a niche tool that is for people who like to draw stuff in PowerPoint and now want to animate it frame by frame. Yeah that audience is small. 
+I think we will be ok and I dont think my comp will blow up using this. 
+As long as what we do does not generate more file size than tags themselves would have done I think we will be fine.
+
+-------------------
+
+ok before we do that. there is something I want that I am wondering if its now easier. I need to be able to scrub the timeline. to do that. I need to know where every shape is supposed to go on every frame. Now let me put this in context. If have one shape that moves on frame 2 and I go to frame 720 and then move it. I need frame 719 to say the coordinates of frame 2. now while we could make lookup collections and such. I really just want to know exactly where every shape is at all times. can it be done at least in the object? then written in xml normally?
+
+--------------------
+
+I think I would run into a problem. Lets say frame 10 has movement and no other movenment until frame 20
+so I go back to frame 10 and make a new movement. 11,12,13,14,15,16,17,18,19 all update now?
+I guess its a "scrub" property in the object not the playback one right?
+So on record frame. We look at playback property and then identify the 1st and last frames to add these scrub values?
+I think that's correct but it's lots of info being saved right? Can it handle it?
+
+
+
+-----------------
+BREAKTHROUGH!
+I could take a character. tween them across the screen for a walk out of frame scene. and then as they are moving take 4 frames to move them up and down to make a "bounce" for the walk. then when it plays back it sees a tween. the tween is applied but on frames where there is raw data it uses that one instead..... this is.. woah
+that if for a tween type
+
+
+----------------
+
+Ok I am following. so here is a real concept that I didnt even think about.
+we were talking about singles earlier right? but. each shape needs to have the 
+scrub playback coordinates
+the realtime playback coordinates
+the tween coordinates
+and a few other things
+
+These coordinates are arrays. so are we saying that I actually store arrays as the type of singles for all these properties? I then redim the array size if the user adds an extra frame? Is it that easy?
+
+Im on frame 10 
+shape.realtimeLeft(9) = 1.25
+shape.realTimeTop(9) = 0
+
+is that it? and it updates the object each time?
+
+
+EAch shape gets an object that holds this
+A shape can absolutely hold multiple arrays of Singles, each representing a different “track” of motion:
+* ScrubTrack — the authoritative, baked frame‑by‑frame data
+* RealTimeTrack — the values used during playback (may include tween overrides)
+* TweenTrack — start/end/easing metadata
+* PreviewTrack — optional, for live preview without committing
+* LastRecordedTrack — optional, for fill‑forward logic
+
+ReDim Preserve them when the user adds more frames.
+“Im on frame 10
+shape.realtimeLeft(9) = 1.25
+shape.realTimeTop(9) = 0
+is that it?”
+
+Yes. That’s literally it.
