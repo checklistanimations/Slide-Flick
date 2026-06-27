@@ -2,6 +2,42 @@ This is a future project.
 
 Below are internal notes that .... well if you want to read them go right ahead. I want to journal the concept so that when I am ready to build it I can see the architecture.
 
+
+talked with Gemini and Copilot to quickly get ideas transcribed. Asked for summary. Below
+
+
+Slide Flick is a frame-by-frame custom animation engine built purely in VBA for Microsoft PowerPoint. It bypasses native PowerPoint animations, driving complex layout transformations on a single slide using a high-performance timeline architecture.Target Frame Rate: Up to 24 FPS.Target Scale: Seamlessly manages up to 500+ shapes across 720+ frames (30-second sequences).Cross-Platform: Native compatibility with Windows PC and macOS.🏗️ Core Architecture & Data PipelineTo maximize performance within VBA's single-threaded environment, Slide Flick uses a Sparse Keyframe Registry Pattern. Instead of polling every shape or checking monolithic arrays on every frame tick, the engine isolates data tracking at both the Property level and the Shape level.1. Global Shape Registries (The Property Filters)To prevent redundant iterations, shapes are registered only into the specific property pipelines they utilize. A single shape can live in multiple registries if it uses multiple properties.movingShapes (Collection): Only contains Shape IDs that actively change Left, Top, or Rotation.scalingShapes (Collection): Only contains Shape IDs that actively change Width or Height (used for squash/stretch or simulating a Z-axis).switchingShapes (Collection): Only contains Shape IDs tied to visibility toggles (e.g., character blinks or Switch Board phoneme mouth shapes).2. Timeline Object Model (clsAnimatedShape)Every animated shape is backed by an instance of a class module (clsAnimatedShape). Timeline data is stored in native VBA collections using string-based frame keys (e.g., "F1", "F45") to achieve instant O(1) memory lookups during scrubbing.vba' --- clsAnimatedShape Class Attributes ---
+Public ShapeID As Long
+Public PositionTimeline As Collection   ' Keys: "F1", "F2"... Values: Array(Left, Top, Rotation)
+Public ScaleTimeline As Collection      ' Keys: "F1", "F2"... Values: Array(Width, Height)
+Public VisibilityTimeline As Collection ' Keys: "F1", "F2"... Values: Boolean
+Use code with caution.3. Data PersistenceStorage Mechanism: Serialization via an explicit XML schema.Implementation: Data is compiled into a single XML block and safely embedded directly into the presentation file using native CustomXMLParts. This ensures the animation data persists, transfers, and saves seamlessly with the .pptx file.⚡ Playback & Scrubbing OptimizationScrubbing (Editing Mode): When a user drags the timeline indicator to a specific frame (e.g., jumping from Frame 5 to Frame 3), the engine queries the master shape registries, checks the exact string key for that frame, and updates the canvas instantly.Playback (Presentation Mode): Execution relies on listening to slideshow transition events and calling SlideShowView.GotoSlide.No Multi-Data Blending: If a shape has no entry for a specific frame key, the engine uses On Error Resume Next to safely skip it instantly, wasting zero CPU cycles on un-animated shapes.🍏 Cross-Platform Workarounds (Mac Compatibility)Because Slide Flick runs purely in VBA, it completely avoids Windows-only dependencies like Scripting.Dictionary or Win32 API calls (QueryPerformanceCounter/Sleep).1. The Sandbox File IO Export WorkaroundMac App Sandboxing blocks standard sequential file writing (like exporting several hundred frames to a folder via Shape.Export), triggering endless "Grant Permission" prompts or Error 70.The Slide Flick Solution: When exporting an image sequence on macOS, Slide Flick automatically duplicates the active slide, builds a temporary 720-slide sequential presentation, and pauses to prompt the user to use PowerPoint's native, sandboxed menu path: File > Export > Save as Image Sequence. The temporary file is discarded immediately afterward.2. Copy/Paste Stability & The Zero FrameID Isolation: The engine tracks shapes strictly by their unique PowerPoint IDs. Copy-pasting (CTRL+C / CTRL+V) or duplicating a shape intentionally strips previous animation data.Initialization: When a new shape is recorded for the first time, it is initialized with a Zero Frame data point mapping its baseline properties. Users can override this zero-frame baseline via a dedicated UI button (e.g., starting an asset off-canvas).🚀 Next Phase Implementation Goals (In 2 Months)The Switch Board Feature: System for handling character rigging visibility trees (swapping grouped child components like mouths and eyes cleanly via IDs).Interpolation Engine: Establishing the mathematical tracking for tweening between isolated keyframes during playback.
+
+
+I need to ensure I have the architecture down.
+
+Slide Flick will contain
+* Frame by Frame Engine
+* Switch Group Panel
+* Pose Library Panel
+* Setup
+
+
+<------------------------------Frame by Frame Engine:------------------------------------->
+ The FBF portion of Slide Flick focuses on recording shape properties per frame. This is stored in customxmlparts but during runtime it is stored in a quickly read object collection
+To best understand FBF for future me I will write out the collections and properties I plan to hold and then the process for a New Scene, Record a Frame, Add new Shape, Scrubbing, and Playback
+
+Collections and Properties:
+* Used Shape Collection (Position): holds all IDs of shapes that have had one or more animations. We are keeping them separate because we should not try to add additional updates that are not needed.
+* Used Shape Collection (Scale): Holds all IDS of shapes that had at least one scale change. All scale change shape IDs will automatically be added to the used shapes position collection because translation happens when scale happens.
+* Used Shape Collection (Visibility): Holds all shapes that had any kind of visibility change. this is separate because most shapes that experience visibility will not typically change position or scale apart from a group carrying them.
+* Frame Data Collection (Position). Contains all frames for an animation. Each value is nothing but a delimited list of shape IDs that have movements of top, left or rotation.
+* Frame Data Collection (Scale). This gets separated because 
+
+
+New Scene:
+All shapes are looked at including 
+
 slide Flick is a frame by frame engine. While there may be interpolation after that is not at all what I am desiging as the core. 
 Now if 500 shapes were all moving at once then probably a group or something would be better but we need need to be ready for what I will throw at it. It is correct that 500 shapes will NOT be animated all 720 frames. but a lot will. and if the animation is longer I need to be ready to handle those 20 million characters. If objects can hold it in memory then I am on board. but if we are going to bloat memory by doing this when the shape already has most of the properties and can hold additional ones with tags. I would like us to be cautious of that. I really do like the idea of everything being an object but I dont want to spend the time to make something that takes 4GB of memory when running.
 
